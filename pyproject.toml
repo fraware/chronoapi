@@ -39,7 +39,7 @@ dev = [
 otel = [
     "opentelemetry-api>=1.28.0,<2",
     "opentelemetry-sdk>=1.28.0,<2",
-    "opentelemetry-instrumentation-fastapi>=0.49b0,<0.50",
+    "opentelemetry-instrumentation-fastapi>=0.49b0,<0.62",
 ]
 
 [tool.setuptools.packages.find]
