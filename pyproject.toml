@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
-    "fastapi>=0.115.6,<0.116",
+    "fastapi>=0.115.6,<0.136",
     "uvicorn[standard]>=0.32.1,<0.33",
     "gunicorn>=23.0.0,<24",
     "pandas>=2.2.3,<3",
