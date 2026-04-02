@@ -1,100 +1,190 @@
+<div align="center">
+
 # ChronoAPI
 
-This repository provides a RESTful API for real-time time-series forecasting using IBM Research’s TTM model. The service is built using FastAPI and offers endpoints for forecasting, fine-tuning, and monitoring. It also includes Kafka-based data ingestion and Prometheus metrics for integration with dashboards such as Grafana and Kibana. 
- 
-## Table of Contents
+**Forecast multivariate time series in production** using IBM Granite **Tiny Time Mixer (TTM)** models.
 
-- [Overview](#overview)
+FastAPI · OpenAPI · Optional Kafka · Prometheus · Docker-ready
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![License: MIT](https://img.shields.io/badge/license-MIT-4b5563?style=flat-square)](LICENSE)
+[![Ruff](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fastral-sh%2Fruff%2Fmain%2Fassets%2Fbadge%2Fv2.json&style=flat-square)](https://github.com/astral-sh/ruff)
+[![CI](https://github.com/fraware/chronoapi/actions/workflows/ci.yml/badge.svg)](https://github.com/fraware/chronoapi/actions/workflows/ci.yml)
+
+[Source](https://github.com/fraware/chronoapi) · [Quick start](#quick-start) · [API reference](#rest-api-at-a-glance) · [Docker](#deployment) · [Model card](MODEL-DESCRIPTION.md)
+
+</div>
+
+---
+
+ChronoAPI is a small, opinionated service layer around [`granite-tsfm`](https://github.com/ibm-granite/granite-tsfm): it loads a TTM checkpoint from Hugging Face, exposes **HTTP** and optionally **Kafka** for the same forecast contract, and ships **metrics** and **structured logs** so you can run it behind a gateway or inside a data pipeline without writing glue code.
+
+**Why this stack?** TTM models are compact enough for CPU-friendly inference; FastAPI gives you typed request bodies and live docs; Prometheus and optional JSON logging fit standard observability stacks.
+
+```mermaid
+flowchart LR
+  subgraph clients [Clients]
+    HTTP[HTTP clients]
+    K[Kafka producers]
+  end
+  subgraph chronoapi [ChronoAPI]
+    API[FastAPI]
+    M[TTM model]
+    API --> M
+  end
+  subgraph ops [Operations]
+    P[Prometheus]
+    L[Log drain]
+  end
+  HTTP --> API
+  K --> API
+  API --> P
+  API --> L
+```
+
+---
+
+## Table of contents
+
 - [Features](#features)
-- [Getting Started](#getting-started)
-- [Usage Examples](#usage-examples)
-  - [Health Check](#health-check)
-  - [Generating Forecasts](#generating-forecasts)
-  - [Fine-Tuning the Model](#fine-tuning-the-model)
+- [Quick start](#quick-start)
+- [Project layout](#project-layout)
+- [Configuration](#configuration)
+- [REST API at a glance](#rest-api-at-a-glance)
+- [Usage examples](#usage-examples)
 - [Integrations](#integrations)
-  - [Kafka Connector](#kafka-connector)
-  - [Monitoring Dashboards](#monitoring-dashboards)
 - [Deployment](#deployment)
 - [Contributing](#contributing)
 - [License](#license)
 
-## Overview
-
-The TTM Forecasting Microservice provides real-time forecasting capabilities by wrapping IBM Research’s TTM model. Organizations can integrate the API into IoT dashboards, financial analytics platforms, or data pipelines with minimal computational overhead. The service supports:
-
-- REST endpoints for inference and fine-tuning.
-- Kafka integration for data ingestion.
-- Prometheus metrics for monitoring and integration with Grafana/Kibana.
-- Comprehensive API documentation via Swagger and ReDoc.
+---
 
 ## Features
 
-- **Forecasting API:** Submit historical time-series data to generate forecasts.
-- **Fine-Tuning API:** Fine-tune the TTM model on custom datasets.
-- **Kafka Connector:** Seamlessly ingest forecast requests via Kafka topics.
-- **Monitoring:** Built-in Prometheus metrics for real-time performance monitoring.
-- **Interactive Documentation:** Explore and test the API via Swagger UI and ReDoc.
+| Area | What you get |
+|------|----------------|
+| **Inference** | `POST /forecast` with configurable `context_length` and `forecast_length`. |
+| **Fine-tuning** | `POST /finetune` synchronously, or async jobs with `FINETUNE_ASYNC` and status polling. |
+| **Streaming** | Optional Kafka consumer: same JSON as `/forecast` in, forecast JSON out. |
+| **Operations** | `GET /metrics` (Prometheus), `/health/live` and `/health/ready`, optional JSON logs. |
+| **Hardening** | Optional `API_KEY` + `X-API-Key`, `X-Request-ID` on every response. |
 
-## Getting Started
+Open the interactive contract anytime at **`/docs`** (Swagger) or **`/redoc`** once the server is up.
 
-### Prerequisites
+---
 
-- Python 3.9 or later
-- Docker and Docker Compose (for containerized deployment)
-- A running Kafka cluster (you can use Docker Compose as provided)
+## Quick start
 
-### Installation
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/yourusername/ttm-forecasting-microservice.git
-   cd ttm-forecasting-microservice
-   ```
-
-2. **Install dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-
-   ```
-
-3. **Run the service locally:**
-
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-The API will be available at http://localhost:8000.
-
-4. **Access API Documentation:**
-
-Swagger UI: http://localhost:8000/docs
-ReDoc: http://localhost:8000/redoc
-
-## Usage Examples
-
-Below are some sample code snippets to help you get started.
-
-### Health Check
-
-Using Curl:
+**Prerequisites:** Python **3.11+** (3.12 matches Docker). First inference run needs Hugging Face access unless you use a warm `HF_HOME` cache or `SKIP_MODEL_LOAD=1` for tests.
 
 ```bash
-curl http://localhost:8000/health
+git clone https://github.com/fraware/chronoapi.git
+cd chronoapi
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Response:
+Then open **http://localhost:8000/docs**. Kafka stays **off** until you set `KAFKA_ENABLED=true` and point brokers at `KAFKA_BOOTSTRAP_SERVERS`.
+
+**Developers** (lint, tests, types):
+
+```bash
+pip install -e ".[dev]"
+```
+
+**Distributed tracing** (optional):
+
+```bash
+pip install -e ".[otel]"
+```
+
+---
+
+## Project layout
+
+| Location | Responsibility |
+|----------|------------------|
+| [`app/main.py`](app/main.py) | ASGI app entry. |
+| [`app/api/factory.py`](app/api/factory.py) | Lifespan, middleware, routing assembly. |
+| [`app/api/routes/`](app/api/routes/) | HTTP handlers: health, forecast, finetune, metrics. |
+| [`app/services/`](app/services/) | Forecasting, training, Kafka loop, async job registry. |
+| [`app/schemas/`](app/schemas/) | Pydantic models for JSON bodies. |
+| [`app/model.py`](app/model.py) | Loads TTM; dummy model when `SKIP_MODEL_LOAD=1`. |
+| [`app/config.py`](app/config.py) | Environment-driven settings. |
+| [`tests/`](tests/) | Pytest (no model download required). |
+| [`docker-compose.yaml`](docker-compose.yaml) · [`Dockerfile`](Dockerfile) | Full stack and production image. |
+| [`MODEL-DESCRIPTION.md`](MODEL-DESCRIPTION.md) | TTM-R2 model card + how ChronoAPI uses it. |
+
+---
+
+## Configuration
+
+Settings load from the environment and optional **`.env`** in the project root (`pydantic-settings`).
+
+<details>
+<summary><strong>Environment variables</strong> (click to expand)</summary>
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LOG_LEVEL` | `INFO` | Logging verbosity. |
+| `JSON_LOGS` | `false` | Emit JSON lines to stdout. |
+| `WORKER_COUNT` | `4` | Gunicorn workers in the container entrypoint. |
+| `KAFKA_ENABLED` | `false` | Start the forecast consumer at startup. |
+| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092` | Broker addresses. |
+| `KAFKA_INPUT_TOPIC` | `forecast_requests` | Request topic. |
+| `KAFKA_OUTPUT_TOPIC` | `forecast_responses` | Response topic. |
+| `SKIP_MODEL_LOAD` | `false` | Skip HF download; use a dummy model. |
+| `API_KEY` | — | If set, require matching `X-API-Key` on protected routes. |
+| `FINETUNE_ASYNC` | `false` | Return **202** + `job_id` from `POST /finetune`; poll `GET /finetune/jobs/{job_id}`. |
+
+</details>
+
+**Headers**
+
+- **`X-Request-ID`** — Optional; server generates one if missing and returns it on the response.
+- **`X-API-Key`** — Required when `API_KEY` is set, except on `/health*`, `/metrics`, `/docs`, `/redoc`, `/openapi.json`.
+
+**Health**
+
+| Endpoint | Role |
+|----------|------|
+| `GET /health` | Legacy OK. |
+| `GET /health/live` | Liveness. |
+| `GET /health/ready` | Readiness (model attached). |
+
+**Lockfiles for production:** Prefer a committed lockfile from [pip-tools](https://github.com/jazzband/pip-tools) or [uv](https://github.com/astral-sh/uv). [`requirements.txt`](requirements.txt) stays on compatible ranges for flexibility.
+
+---
+
+## REST API at a glance
+
+| Method | Path | Notes |
+|--------|------|--------|
+| `POST` | `/forecast` | Body: [`ForecastRequest`](app/schemas/requests.py). You need enough rows to satisfy `context_length` (default 512). |
+| `POST` | `/finetune` | Body: `FineTuneRequest`; at least **three** rows in `data`. |
+| `GET` | `/finetune/jobs/{job_id}` | Async job status when `FINETUNE_ASYNC=true`. |
+| `GET` | `/metrics` | Prometheus text format. |
+
+Validation issues and expected rule violations (e.g. too few history rows) surface as **422** where applicable.
+
+---
+
+## Usage examples
+
+### Liveness
+
+```bash
+curl -s http://localhost:8000/health/live
+```
 
 ```json
-{
-  "status": "ok"
-}
+{"status":"ok"}
 ```
 
-### Generating Forecasts
+### Forecast payload shape
 
-Sample Request (forecast_sample.json):
+Each row needs a **`date`** (datetime string) plus **`HUFL`**, **`HULL`**, **`MUFL`**, **`MULL`**, **`LUFL`**, **`LULL`**, **`OT`** (ETTh-style defaults). Below is a **structural** sample only—extend `data` until `len(data) >= context_length` before calling the API.
 
 ```json
 {
@@ -119,7 +209,6 @@ Sample Request (forecast_sample.json):
       "LULL": 0.8,
       "OT": 1.4
     }
-    // Add enough rows (e.g., 512 rows) for context_length.
   ],
   "context_length": 512,
   "forecast_length": 96,
@@ -127,40 +216,32 @@ Sample Request (forecast_sample.json):
 }
 ```
 
-Submit Request using Curl:
-
 ```bash
-curl -X POST http://localhost:8000/forecast \
--H "Content-Type: application/json" \
--d @forecast_sample.json
+curl -s -X POST http://localhost:8000/forecast \
+  -H "Content-Type: application/json" \
+  -d @forecast_sample.json
 ```
-
-Using Python (with `requests`):
 
 ```python
 import requests
-import json
 
-url = "http://localhost:8000/forecast"
-payload = {
-"data": [
-{"date": "2023-01-01 00:00", "HUFL": 1.2, "HULL": 0.5, "MUFL": 1.0, "MULL": 0.8, "LUFL": 1.1, "LULL": 0.7, "OT": 1.3},
-# ... add more records to meet context_length requirement
-],
-"context_length": 512,
-"forecast_length": 96,
-"request_id": "test123"
-}
-
-response = requests.post(url, json=payload)
-print(response.json())
+r = requests.post(
+    "http://localhost:8000/forecast",
+    json={
+        "data": [],  # fill: len >= context_length
+        "context_length": 512,
+        "forecast_length": 96,
+        "request_id": "test123",
+    },
+    timeout=300,
+)
+r.raise_for_status()
+print(r.json())
 ```
 
-### Fine-Tuning the Model
+### Fine-tuning (synchronous)
 
-Sample Fine-Tuning Request:
-
-Create a JSON file `finetune_sample.json`:
+Minimum **three** rows in `data`:
 
 ```json
 {
@@ -184,8 +265,17 @@ Create a JSON file `finetune_sample.json`:
       "LUFL": 1.2,
       "LULL": 0.8,
       "OT": 1.4
+    },
+    {
+      "date": "2023-01-01 00:20",
+      "HUFL": 1.35,
+      "HULL": 0.55,
+      "MUFL": 1.05,
+      "MULL": 0.85,
+      "LUFL": 1.15,
+      "LULL": 0.75,
+      "OT": 1.45
     }
-    // Add enough data to perform fine-tuning
   ],
   "context_length": 512,
   "forecast_length": 96,
@@ -200,76 +290,83 @@ Create a JSON file `finetune_sample.json`:
 }
 ```
 
-Submit Fine-Tuning Request using Curl:
+```bash
+curl -s -X POST http://localhost:8000/finetune \
+  -H "Content-Type: application/json" \
+  -d @finetune_sample.json
+```
+
+### Fine-tuning (async)
 
 ```bash
-curl -X POST http://localhost:8000/finetune \
--H "Content-Type: application/json" \
--d @finetune_sample.json
+export FINETUNE_ASYNC=true
+curl -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:8000/finetune \
+  -H "Content-Type: application/json" \
+  -d @finetune_sample.json
+curl -s http://localhost:8000/finetune/jobs/<job_id>
 ```
+
+For heavy training, route work through a real queue (Celery, RQ, Arq); the built-in async mode is a lightweight pattern.
+
+---
 
 ## Integrations
 
-### Kafka Connector
+### Kafka
 
-The service includes a Kafka consumer that listens to forecast requests on the configured input topic. To test:
+1. `docker compose -f docker-compose.yaml up -d --build` — the bundled `app` service enables Kafka and points at `kafka:9092`.
+2. Publish JSON to **`forecast_requests`** with the same fields as `POST /forecast`.
+3. Consume **`forecast_responses`** for `{ "forecast": ..., "request_id": ... }`.
 
-1. **Start Kafka via Docker Compose:**
+### Metrics and logs
 
-   ```bash
-   docker-compose up -d
+Scrape **`/metrics`** with Prometheus. Point Grafana at that data source for RED-style panels (`http_requests_total`, forecast counters and latency). Enable **`JSON_LOGS=true`** and ship stdout to Loki or Elasticsearch; correlate with **`X-Request-ID`**.
 
-   ```
-
-2. **Produce a test message to the `forecast_requests` topic.**
-   You can use Kafka CLI tools or write a small producer script in Python. The message format should match the JSON expected by the `/forecast` endpoint.
-
-3. **Monitor the `forecast_responses` topic for forecast results.**
-
-### Monitoring Dashboards
-
-- **Prometheus:**
-  The `/metrics` endpoint exposes Prometheus metrics. Configure Prometheus to scrape this endpoint.
-
-- **Grafana:**
-  Connect Grafana to Prometheus and create dashboards to visualize:
-
-  - Total forecast requests
-  - Processing latency
-  - Kafka message statistics
-
-- **Kibana:**
-  Configure log shipping (using Filebeat or Fluentd) to send structured logs to Elasticsearch, then build Kibana dashboards to monitor API activity.
+---
 
 ## Deployment
 
-### Docker Deployment
-
-1. **Build Docker Image:**
-
-   ```bash
-   docker build -t forecasting-service .
-
-   ```
-
-2. **Run with Docker Compose:**
-
-Use the provided `docker-compose.yml` to start the Kafka stack and the forecasting service.
+**Image**
 
 ```bash
-docker-compose up -d
+docker build -t chronoapi:latest .
+docker run --rm -p 8000:8000 \
+  -e SKIP_MODEL_LOAD=0 \
+  -e KAFKA_ENABLED=false \
+  chronoapi:latest
 ```
 
-### Production Considerations
+**Compose** — Zookeeper, Kafka (Confluent 7.6.1), and the API on port **8000**: see [`docker-compose.yaml`](docker-compose.yaml).
 
-- **Auto-scaling:** Configure Kubernetes or Docker Swarm for scaling.
-- **Security:** Implement authentication (e.g., API keys, OAuth2) and rate-limiting.
-- **Asynchronous Fine-Tuning:** Offload fine-tuning jobs to a task queue (e.g., Celery) for long-running tasks.
+**Model cache** — Mount **`HF_HOME`** / **`TRANSFORMERS_CACHE`** so weights survive restarts. Offline: pre-seed the cache, then **`TRANSFORMERS_OFFLINE=1`** / **`HF_HUB_OFFLINE=1`** when your policy allows.
+
+**Production** — Terminate TLS in front of the service, set **`API_KEY`** when exposed, rate-limit at the edge, and keep long fine-tunes off the request path.
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please fork this repository and open a pull request with your changes.
+1. Branch from `main` and keep commits focused.
+2. Before opening a PR, run the same gates as CI:
+
+   **PowerShell**
+
+   ```powershell
+   $env:SKIP_MODEL_LOAD="1"; $env:KAFKA_ENABLED="false"
+   pytest; ruff check app tests; ruff format --check app tests; mypy app
+   ```
+
+   **Bash**
+
+   ```bash
+   export SKIP_MODEL_LOAD=1 KAFKA_ENABLED=false
+   pytest && ruff check app tests && ruff format --check app tests && mypy app
+   ```
+
+3. CI workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Dependency PRs: [`.github/dependabot.yml`](.github/dependabot.yml).
+
+---
 
 ## License
 
-This project is licensed under the MIT License.
+Released under the [MIT License](LICENSE).

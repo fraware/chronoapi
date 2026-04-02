@@ -1,15 +1,35 @@
-version: "2"
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.6.1
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+
   kafka:
-    image: confluentinc/cp-kafka:latest  
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - zookeeper
     ports:
       - "9092:9092"
     environment:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  app:
+    build: .
+    depends_on:
+      - kafka
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_INPUT_TOPIC: forecast_requests
+      KAFKA_OUTPUT_TOPIC: forecast_responses
+      WORKER_COUNT: "2"
+      SKIP_MODEL_LOAD: "0"
+      LOG_LEVEL: INFO
+    # Optional: mount Hugging Face cache for faster restarts
+    # volumes:
+    #   - hf_cache:/home/appuser/.cache/huggingface

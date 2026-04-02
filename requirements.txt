@@ -1,13 +1,14 @@
-streamlit
-pandas
-torch
-transformers
-plotly
+# Install: pip install -r requirements.txt
+# Prefer lockfile workflow: pip install -e ".[dev]" (see pyproject.toml)
+fastapi>=0.115.6,<0.116
+uvicorn[standard]>=0.32.1,<0.33
+gunicorn>=23.0.0,<24
+pandas>=2.2.3,<3
+torch>=2.5.1,<3
+transformers>=4.46.0,<5
+plotly>=5.24.0,<6
 granite-tsfm @ git+https://github.com/ibm-granite/granite-tsfm.git
-fastapi
-uvicorn[standard]
-gunicorn
-aiokafka
-prometheus_client
-pydantic
-pydantic-settings
+aiokafka>=0.12.0,<0.13
+prometheus-client>=0.21.0,<0.22
+pydantic>=2.10.0,<3
+pydantic-settings>=2.6.0,<3

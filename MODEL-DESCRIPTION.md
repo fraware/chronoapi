@@ -1,5 +1,21 @@
 # Granite-TimeSeries-TTM-R2 Model Card
 
+## ChronoAPI integration
+
+This repository ships **ChronoAPI**, a FastAPI service that uses IBM Granite **granite-tsfm** to load and run TTM models. For how to run, configure, and deploy the API, see the main [README.md](README.md).
+
+| Topic | How ChronoAPI uses TTM-R2 |
+|-------|---------------------------|
+| Default model ID | `ibm-granite/granite-timeseries-ttm-r2` (see [`app/model.py`](app/model.py)) |
+| Default context / horizon | Context length **512**, prediction length **96** (configurable per request where the stack allows) |
+| Inference input | Multivariate windows: timestamp column **`date`**, targets **`HUFL`**, **`HULL`**, **`MUFL`**, **`MULL`**, **`LUFL`**, **`LULL`**, **`OT`** (see [`app/services/constants.py`](app/services/constants.py) and [`app/schemas/requests.py`](app/schemas/requests.py)) |
+| Preprocessing | The service builds tensors from the recent context window; see the docstring in [`app/services/forecast.py`](app/services/forecast.py) for how this relates to `TimeSeriesPreprocessor` and scaling expectations from the model card below. |
+| Tests / CI | Set **`SKIP_MODEL_LOAD=1`** to use a dummy PyTorch module so tests do not download weights. |
+
+The remainder of this document is the **TTM-R2 model card** (IBM Research). It describes model capabilities, training data, and recommended use; ChronoAPI is a thin serving layer on top of the same Hugging Face model family.
+
+---
+
 <p align="center" width="100%">
 <img src="ttm_image.webp" width="600">
 </p>
