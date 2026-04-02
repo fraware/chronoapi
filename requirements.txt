@@ -9,6 +9,6 @@ transformers>=4.46.0,<5
 plotly>=5.24.0,<6
 granite-tsfm @ git+https://github.com/ibm-granite/granite-tsfm.git
 aiokafka>=0.12.0,<0.13
-prometheus-client>=0.21.0,<0.22
+prometheus-client>=0.21.0,<0.25
 pydantic>=2.10.0,<3
 pydantic-settings>=2.6.0,<3
