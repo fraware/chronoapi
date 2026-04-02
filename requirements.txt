@@ -1,7 +1,7 @@
 # Install: pip install -r requirements.txt
 # Prefer lockfile workflow: pip install -e ".[dev]" (see pyproject.toml)
 fastapi>=0.115.6,<0.116
-uvicorn[standard]>=0.32.1,<0.33
+uvicorn[standard]>=0.32.1,<0.43
 gunicorn>=23.0.0,<24
 pandas>=2.2.3,<3
 torch>=2.5.1,<3
