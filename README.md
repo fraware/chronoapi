@@ -10,7 +10,6 @@ FastAPI · OpenAPI · Optional Kafka · Prometheus · Docker-ready
 [![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![License: MIT](https://img.shields.io/badge/license-MIT-4b5563?style=flat-square)](LICENSE)
 [![Ruff](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fastral-sh%2Fruff%2Fmain%2Fassets%2Fbadge%2Fv2.json&style=flat-square)](https://github.com/astral-sh/ruff)
-[![CI](https://github.com/fraware/chronoapi/actions/workflows/ci.yml/badge.svg)](https://github.com/fraware/chronoapi/actions/workflows/ci.yml)
 
 [Source](https://github.com/fraware/chronoapi) · [Quick start](#quick-start) · [API reference](#rest-api-at-a-glance) · [Docker](#deployment) · [Model card](MODEL-DESCRIPTION.md)
 
@@ -21,42 +20,6 @@ FastAPI · OpenAPI · Optional Kafka · Prometheus · Docker-ready
 ChronoAPI is a small, opinionated service layer around [`granite-tsfm`](https://github.com/ibm-granite/granite-tsfm): it loads a TTM checkpoint from Hugging Face, exposes **HTTP** and optionally **Kafka** for the same forecast contract, and ships **metrics** and **structured logs** so you can run it behind a gateway or inside a data pipeline without writing glue code.
 
 **Why this stack?** TTM models are compact enough for CPU-friendly inference; FastAPI gives you typed request bodies and live docs; Prometheus and optional JSON logging fit standard observability stacks.
-
-```mermaid
-flowchart LR
-  subgraph clients [Clients]
-    HTTP[HTTP clients]
-    K[Kafka producers]
-  end
-  subgraph chronoapi [ChronoAPI]
-    API[FastAPI]
-    M[TTM model]
-    API --> M
-  end
-  subgraph ops [Operations]
-    P[Prometheus]
-    L[Log drain]
-  end
-  HTTP --> API
-  K --> API
-  API --> P
-  API --> L
-```
-
----
-
-## Table of contents
-
-- [Features](#features)
-- [Quick start](#quick-start)
-- [Project layout](#project-layout)
-- [Configuration](#configuration)
-- [REST API at a glance](#rest-api-at-a-glance)
-- [Usage examples](#usage-examples)
-- [Integrations](#integrations)
-- [Deployment](#deployment)
-- [Contributing](#contributing)
-- [License](#license)
 
 ---
 
